@@ -1,20 +1,21 @@
 using ParallelStencil
-using ParallelStencil.FiniteDifferences2D
+using ParallelStencil.FiniteDifferences3D
 using Plots,LinearAlgebra,Statistics,Printf,ElasticArrays
 
 const USE_GPU = true
 @static if USE_GPU
-    @init_parallel_stencil(CUDA, Float64, 2)
+    @init_parallel_stencil(CUDA, Float64, 3)
 else
-    @init_parallel_stencil(Threads, Float64, 2)
+    @init_parallel_stencil(Threads, Float64, 3)
 end
 
-macro Gdτ_mech()     esc(:( vpdτ_mech*Re_mech*@all(ηsτ)/max_lxy/(r_mech+2.0) )) end
-macro Gdτ_mech_av()  esc(:( vpdτ_mech*Re_mech*@av(ηsτ)/max_lxy/(r_mech+2.0)  )) end
-macro ρ_dτ_mech_x()  esc(:( Re_mech*@av_xi(ηsτ)/vpdτ_mech/max_lxy            )) end
-macro ρ_dτ_mech_y()  esc(:( Re_mech*@av_yi(ηsτ)/vpdτ_mech/max_lxy            )) end
-macro ηs_pτ()        esc(:( 1.0/(1.0/@Gdτ_mech() + 1.0/@all(ηs))             )) end
-macro ηs_pτ_av()     esc(:( 1.0/(1.0/@Gdτ_mech_av() + 1.0/@av(ηs))           )) end
+macro Gdτ_mech()      esc(:( vpdτ_mech*Re_mech*@all(ηsτ)/max_lxyz/(r_mech+2.0)    )) end
+macro Gdτ_mech_avxy() esc(:( vpdτ_mech*Re_mech*@av_xyi(ηsτ)/max_lxyz/(r_mech+2.0) )) end
+macro ρ_dτ_mech_x()   esc(:( Re_mech*@av_xi(ηsτ)/vpdτ_mech/max_lxyz               )) end
+macro ρ_dτ_mech_y()   esc(:( Re_mech*@av_yi(ηsτ)/vpdτ_mech/max_lxyz               )) end
+macro ρ_dτ_mech_z()   esc(:( Re_mech*@av_zi(ηsτ)/vpdτ_mech/max_lxyz               )) end
+macro ηs_pτ()         esc(:( 1.0/(1.0/@Gdτ_mech() + 1.0/@all(ηs))                 )) end
+macro ηs_pτ_av()      esc(:( 1.0/(1.0/@Gdτ_mech_av() + 1.0/@av(ηs))               )) end
 
 @parallel function update_potentials!(μ,C,C_o,Pr,τxx,τyy,τxy,Vx,Vy,ηs,ηsτ,vol,bd,γ2,dt,r_mech,Re_mech,vpdτ_mech,max_lxy,dx,dy)
     # chemical potential
@@ -23,11 +24,14 @@ macro ηs_pτ_av()     esc(:( 1.0/(1.0/@Gdτ_mech_av() + 1.0/@av(ηs))          
     @all(Pr)  = @all(Pr) - r_mech*@Gdτ_mech()*(@d_xa(Vx)/dx + @d_ya(Vy)/dy + vol*(@all(C)-@all(C_o))/dt)
     @all(τxx) = 2.0*@ηs_pτ()*(@d_xa(Vx)/dx + 0.5*@all(τxx)/@Gdτ_mech())
     @all(τyy) = 2.0*@ηs_pτ()*(@d_ya(Vy)/dy + 0.5*@all(τyy)/@Gdτ_mech())
+    @all(τzz) = 2.0*@ηs_pτ()*(@d_ya(Vz)/dz + 0.5*@all(τzz)/@Gdτ_mech())
     @all(τxy) = @ηs_pτ_av()*(@d_yi(Vx)/dy + @d_xi(Vy)/dx + @all(τxy)/@Gdτ_mech_av())
+    @all(τxz) = @ηs_pτ_av()*(@d_zi(Vx)/dz + @d_xi(Vz)/dx + @all(τxz)/@Gdτ_mech_av())
+    @all(τyz) = @ηs_pτ_av()*(@d_zi(Vy)/dz + @d_yi(Vz)/dy + @all(τyz)/@Gdτ_mech_av())
     return
 end
 
-@parallel function update_fluxes!(qCx,qCy,Vx,Vy,μ,Pr,τxx,τyy,τxy,ηs,ηsτ,dc0,θ_dτ_chem,Re_mech,vpdτ_mech,max_lxy,dx,dy)
+@parallel function update_fluxes!(qCx,qCy,qCz,Vx,Vy,Vz,μ,Pr,τxx,τyy,τzz,τxy,τxz,τyz,ηs,ηsτ,dc0,θ_dτ_chem,Re_mech,vpdτ_mech,max_lxyz,dx,dy,dz)
     @inn_x(qCx) = (@inn_x(qCx)*θ_dτ_chem - dc0*@d_xa(μ)/dx)/(θ_dτ_chem + 1.0)
     @inn_y(qCy) = (@inn_y(qCy)*θ_dτ_chem - dc0*@d_ya(μ)/dy)/(θ_dτ_chem + 1.0)
     @inn(Vx)    = @inn(Vx) + (-@d_xi(Pr)/dx + @d_xi(τxx)/dx + @d_ya(τxy)/dy)/@ρ_dτ_mech_x()
@@ -36,8 +40,8 @@ end
 end
 
 @parallel function update_concentrations!(C,C_o,qCx,qCy,ηs,ηsτ,dt,ηs0,npow,ηs_rel,ρ_dτ_chem,dx,dy)
-    @all(C)   = (@all(C)*ρ_dτ_chem + @all(C_o)/dt - @d_xa(qCx)/dx - @d_ya(qCy)/dy)/(ρ_dτ_chem + 1.0/dt);
-    @all(ηs)  = @all(ηs)*(1.0-ηs_rel) + ηs0*10.0^(npow*@all(C))*ηs_rel
+    @all(C)  = (@all(C)*ρ_dτ_chem + @all(C_o)/dt - @d_xa(qCx)/dx - @d_ya(qCy)/dy)/(ρ_dτ_chem + 1.0/dt);
+    @all(ηs) = @all(ηs)*(1.0-ηs_rel) + ηs0*10.0^(npow*@all(C))*ηs_rel
     # @inn(ηsτ) = @maxloc(ηs)*(1.0-ηs_rel) + ηs0*10.0^(npow*@maxloc(C))*ηs_rel
     return
 end
@@ -55,6 +59,7 @@ end
 @parallel function compute_true_τ!(τxx2,τyy2,τxy2,Vx,Vy,ηs,dx,dy)
     @all(τxx2) = 2.0*@all(ηs)*@d_xa(Vx)/dx
     @all(τyy2) = 2.0*@all(ηs)*@d_ya(Vy)/dy
+    @all(τzz2) = 2.0*@all(ηs)*@d_za(Vz)/dz
     @all(τxy2) = @av(ηs)*(@d_yi(Vx)/dy + @d_xi(Vy)/dx)
     return
 end
@@ -96,6 +101,7 @@ end
     psc       = ηs0/tsc  # pressure scale [Pa]
     # nondimensional parameters
     ly_lx     = 1.0
+    lz_lx     = 1.0
     γ_lx      = 1e-2
     ttot_tsc  = 100.0
     Da        = 1e5
@@ -107,6 +113,7 @@ end
     npow      = 2.0
     # dimensionally dependent
     ly        = ly_lx*lx
+    lz        = lz_lx*lx
     γ         = γ_lx*lx
     ttot      = ttot_tsc*tsc
     dt0       = 1.0/Da*tsc
@@ -115,53 +122,60 @@ end
     # numerics
     nx        = 511
     ny        = round(Int,nx*ly_lx)
-    maxiter   = 20max(nx,ny)
-    ncheck    = ceil(1max(nx,ny))
+    nz        = round(Int,nx*lz_lx)
+    maxiter   = 20max(nx,ny,nz)
+    ncheck    = ceil(1max(nx,ny,nz))
     nviz      = 1
-    εiter     = [1e-4 1e-4 1e-4 1e-4]
-    CFL_chem  = 0.05/sqrt(2)
-    CFL_mech  = 0.5/sqrt(2)
+    εiter     = [1e-4 1e-4 1e-4 1e-4 1e-4]
+    CFL_chem  = 0.05/sqrt(3)
+    CFL_mech  = 0.5/sqrt(3)
     ηs_rel    = 1e-1
     # preprocessing
-    dx,dy     = lx/nx,ly/ny
-    xc,yc     = LinRange(-lx/2+dx/2,lx/2-dx/2,nx  ), LinRange(-ly/2+dy/2,ly/2-dy/2,ny  )
-    xv,yv     = LinRange(-lx/2     ,lx/2     ,nx+1), LinRange(-ly/2     ,ly/2     ,ny+1)
+    dx,dy,dz  = lx/nx,ly/ny,lz/nz
+    xc,yc,zc  = LinRange(-lx/2+dx/2,lx/2-dx/2,nx  ), LinRange(-ly/2+dy/2,ly/2-dy/2,ny  ), LinRange(-lz/2+dz/2,lz/2-dz/2,nz  )
+    xv,yv,zv  = LinRange(-lx/2     ,lx/2     ,nx+1), LinRange(-ly/2     ,ly/2     ,ny+1), LinRange(-lz/2     ,lz/2     ,nz+1)
     γ2        = γ^2
     c1        = π^4*γ_lx^2 + π^2
     c2        = c1 + Da
     Re_chem   = sqrt(c1 + c2 + 2*sqrt(c1*c2))
     Re_mech   = 10π
     r_mech    = 1.0
-    max_lxy   = max(lx,ly)
-    vpdτ_mech = min(dx,dy)*CFL_mech
-    vpdτ_chem = min(dx,dy)*CFL_chem
-    ρ_dτ_chem = Re_chem*dc0/(vpdτ_chem*max_lxy)
-    θ_dτ_chem = max_lxy/(Re_chem*vpdτ_chem)
+    max_lxyz  = max(lx,ly,lz)
+    vpdτ_mech = min(dx,dy,dz)*CFL_mech
+    vpdτ_chem = min(dx,dy,dz)*CFL_chem
+    ρ_dτ_chem = Re_chem*dc0/(vpdτ_chem*max_lxyz)
+    θ_dτ_chem = max_lxyz/(Re_chem*vpdτ_chem)
     ## init
     # allocate fields
-    C         = @zeros(nx  ,ny  )
-    C_o       = @zeros(nx  ,ny  )
-    qCx       = @zeros(nx+1,ny  )
-    qCy       = @zeros(nx  ,ny+1)
-    dC_dt     = @zeros(nx-2,ny-2)
-    Pr        = @zeros(nx  ,ny  )
-    τxx       = @zeros(nx  ,ny  )
-    τyy       = @zeros(nx  ,ny  )
-    τxy       = @zeros(nx-1,ny-1)
-    Vx        = @zeros(nx+1,ny  )
-    Vy        = @zeros(nx  ,ny+1)
-    μ         = @zeros(nx  ,ny  )
-    ηs        = @zeros(nx  ,ny  )
-    ηsτ       = @zeros(nx  ,ny  )
-    τxx2      = @zeros(nx  ,ny  )
-    τyy2      = @zeros(nx  ,ny  )
-    τxy2      = @zeros(nx-1,ny-1)
-    rC        = @zeros(nx-2,ny-2)
-    rPr       = @zeros(nx  ,ny  )
-    rVx       = @zeros(nx-1,ny-2)
-    rVy       = @zeros(nx-2,ny-1)
+    C         = @zeros(nx  ,ny  ,nz  )
+    C_o       = @zeros(nx  ,ny  ,nz  )
+    qCx       = @zeros(nx+1,ny  ,nz  )
+    qCy       = @zeros(nx  ,ny+1,nz  )
+    qCz       = @zeros(nx  ,ny  ,nz+1)
+    dC_dt     = @zeros(nx-2,ny-2,nz-2)
+    Pr        = @zeros(nx  ,ny  ,nz  )
+    τxx       = @zeros(nx  ,ny  ,nz  )
+    τyy       = @zeros(nx  ,ny  ,nz  )
+    τzz       = @zeros(nx  ,ny  ,nz  )
+    τxy       = @zeros(nx-1,ny-1,nz-2)
+    τxz       = @zeros(nx-1,ny-2,nz-1)
+    τyz       = @zeros(nx-2,ny-1,nz-1)
+    Vx        = @zeros(nx+1,ny  ,nz  )
+    Vy        = @zeros(nx  ,ny+1,nz  )
+    Vz        = @zeros(nx  ,ny  ,nz+1)
+    μ         = @zeros(nx  ,ny  ,nz  )
+    ηs        = @zeros(nx  ,ny  ,nz  )
+    ηsτ       = @zeros(nx  ,ny  ,nz  )
+    τxx2      = @zeros(nx  ,ny  ,nz  )
+    τyy2      = @zeros(nx  ,ny  ,nz  )
+    τxy2      = @zeros(nx-1,ny-1,nz-1)
+    rC        = @zeros(nx-2,ny-2,nz-2)
+    rPr       = @zeros(nx  ,ny  ,nz  )
+    rVx       = @zeros(nx-1,ny-2,nz-2)
+    rVy       = @zeros(nx-2,ny-1,nz-2)
+    rVz       = @zeros(nx-2,ny-2,nz-1)
     # initial conditions
-    C        .= c0 .+ ca.*Data.Array(2 .*rand(nx,ny).-1.0)
+    C        .= c0 .+ ca.*Data.Array(2 .*rand(nx,ny,nz).-1.0)
     @. Vx     = -εbg*(  xv + 0*yc')
     @. Vy     =  εbg*(0*xc +   yv')
     @. ηs     = ηs0*10.0^(npow*C)
