@@ -104,7 +104,7 @@ end
     vol       = -0*2e-3
     bd_ipsc   = 0*1e-1
     Pe        = 1000.0
-    npow      = 2.0
+    npow      = 0.5
     # dimensionally dependent
     ly        = ly_lx*lx
     γ         = γ_lx*lx
@@ -113,14 +113,14 @@ end
     εbg       = Pe/tsc
     bd        = bd_ipsc/psc
     # numerics
-    nx        = 511
+    nx        = 255
     ny        = round(Int,nx*ly_lx)
     maxiter   = 20max(nx,ny)
     ncheck    = ceil(1max(nx,ny))
     nviz      = 1
     εiter     = [1e-4 1e-4 1e-4 1e-4]
     CFL_chem  = 0.05/sqrt(2)
-    CFL_mech  = 0.5/sqrt(2)
+    CFL_mech  = 0.9/sqrt(2)
     ηs_rel    = 1e-1
     # preprocessing
     dx,dy     = lx/nx,ly/ny
@@ -130,8 +130,8 @@ end
     c1        = π^4*γ_lx^2 + π^2
     c2        = c1 + Da
     Re_chem   = sqrt(c1 + c2 + 2*sqrt(c1*c2))
-    Re_mech   = 10π
-    r_mech    = 1.0
+    Re_mech   = 5π
+    r_mech    = 0.5
     max_lxy   = max(lx,ly)
     vpdτ_mech = min(dx,dy)*CFL_mech
     vpdτ_chem = min(dx,dy)*CFL_chem

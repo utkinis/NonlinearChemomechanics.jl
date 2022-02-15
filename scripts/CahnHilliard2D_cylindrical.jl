@@ -19,7 +19,7 @@ macro av_ϕa(A) esc(:( 0.5*($A[ir,iϕ+1] + $A[ir,iϕ]) )) end
 @parallel_indices (ir,iϕ) function init_C!(C,dr,dϕ,r0,lr)
     if checkbounds(Bool,C,ir,iϕ)
         r = r0 + (ir-1)*dr + 0.5dr
-        C[ir,iϕ] = (r < 0.5lr) ? 0.7 : 0.25
+        C[ir,iϕ] = (r < 0.5lr) ? 0.999 : 0.001
     end
     return
 end
@@ -115,15 +115,15 @@ end
     χ         = 2.6
     # dimensionally dependent
     ttot      = 1*tsc
-    dt        = 5e-6*tsc
-    r0        = 0.1*lr
+    dt        = 1e-6*tsc
+    r0        = 0.5*lr
     # numerics
     nr,nϕ     = 201,601
     εtol      = 1e-6
-    max_iters = 5*nr
+    max_iters = 20*nr
     ncheck    = ceil(Int, 0.5*nr)
-    nvis      = 10
-    CFL_chem  = 0.025
+    nvis      = 100
+    CFL_chem  = 0.04
     # preprocessing
     dr,dϕ     = lr/nr,lϕ/nϕ
     rv,ϕv     = LinRange(r0,r0+lr,nr+1),LinRange(-dϕ,lϕ+dϕ,nϕ+1)

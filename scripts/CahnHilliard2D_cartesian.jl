@@ -1,8 +1,8 @@
 using ParallelStencil
 using Printf,Plots,LinearAlgebra
 
-# @init_parallel_stencil(CUDA, Float64, 2)
-@init_parallel_stencil(Threads, Float64, 2)
+@init_parallel_stencil(CUDA, Float64, 2)
+# @init_parallel_stencil(Threads, Float64, 2)
 
 dGdc(c,χ) = log(c) - log(1.0-c) + χ*(1.0-2.0*c)
 
@@ -97,7 +97,7 @@ end
     χ         = 2.6
     # dimensionally dependent
     ttot      = 1*tsc
-    dt        = 1e-4*tsc
+    dt        = 1e-5*tsc
     r0        = 0.2*lx
     # numerics
     nx,ny     = 201,201
@@ -105,13 +105,13 @@ end
     max_iters = 10*nx
     ncheck    = ceil(Int, 0.5*nx)
     nvis      = 10
-    CFL_chem  = 0.25
+    CFL_chem  = 0.025
     # preprocessing
     dx,dy     = lx/nx,ly/ny
     xv,yv     = LinRange(0,lx,nx+1),LinRange(0,ly,ny+1)
     xc,yc     = 0.5*(xv[1:end-1]+xv[2:end]),0.5*(yv[1:end-1]+yv[2:end])
     vpdτ_chem = dx*CFL_chem
-    γ         = dx
+    γ         = 2dx
     γ2        = γ^2
     c1        = π^4*(γ/lx)^2 + π^2
     c2        = c1 + lx^2/dc0/dt
@@ -126,7 +126,7 @@ end
     μ         = @zeros(nx  ,ny  )
     rC        = @zeros(nx  ,ny  )
     # @parallel init_C!(C,dx,dy,r0,lx,ly)
-    C .= 0.8.*rand(nx,ny) .+ 0.1
+    C .= 0.8.*CUDA.rand(nx,ny) .+ 0.1
     # action
     tcur = 0.0; it = 1
     while tcur < ttot
