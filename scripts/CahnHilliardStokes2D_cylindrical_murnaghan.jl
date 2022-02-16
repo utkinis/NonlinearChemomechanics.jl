@@ -413,6 +413,24 @@ end
     ρ        .= ρ0
     # action
     tcur = 0.0; it = 1
+    matwrite("$out_dir/params.mat", Dict(
+        "dr"        => dr,
+        "dp"        => dϕ,
+        "nr"        => nr,
+        "np"        => np,
+        "eiter"     => εtol,
+        "gam"       => γ,
+        "chi"       => χ,
+        "Pe"        => Pe,
+        "npow"      => npow,
+        "Kp"        => Kp,
+        "bdpsc_vol" => bdpsc_vol,
+        "vol"       => δv,
+        "rv"        => Array(rv),
+        "pv"        => Array(ϕv),
+        "rc"        => Array(rc),
+        "pc"        => Array(ϕc),
+    ); compress = true)
     while tcur < ttot
         @printf(" - it #%d\n", it)
         C_o  .= C
