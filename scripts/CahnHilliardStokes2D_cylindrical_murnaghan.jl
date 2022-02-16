@@ -1,5 +1,5 @@
 using ParallelStencil
-using Printf,Plots,LinearAlgebra,Statistics,MAT,Random
+using Printf,LinearAlgebra,Statistics,MAT,Random
 
 @init_parallel_stencil(CUDA, Float64, 2)
 # @init_parallel_stencil(Threads, Float64, 2)
@@ -458,11 +458,11 @@ end
         end
         if it % nvis == 0
             @parallel compute_V_cart!(Vx,Vy,Vr,Vϕ,dr,dϕ,r0,-dϕ)
-            p1 = heatmap(ϕc,rc,Array(Vx);proj=:polar,c=:turbo,title="Vx")
-            p2 = heatmap(ϕc,rc,Array(ρ[2:end-1,2:end-1]);proj=:polar,c=:turbo,title="ρ")
-            p3 = heatmap(ϕc,rc,Array(Pr);proj=:polar,c=:turbo,title="P")
-            p4 = heatmap(ϕc,rc,Array(C);proj=:polar,c=:turbo,title="C")
-            display(plot(p1,p2,p3,p4;layout=(2,2),size=(1e3,600),dpi=100))
+            # p1 = heatmap(ϕc,rc,Array(Vx);proj=:polar,c=:turbo,title="Vx")
+            # p2 = heatmap(ϕc,rc,Array(ρ[2:end-1,2:end-1]);proj=:polar,c=:turbo,title="ρ")
+            # p3 = heatmap(ϕc,rc,Array(Pr);proj=:polar,c=:turbo,title="P")
+            # p4 = heatmap(ϕc,rc,Array(C);proj=:polar,c=:turbo,title="C")
+            # display(plot(p1,p2,p3,p4;layout=(2,2),size=(1e3,600),dpi=100))
             matwrite("$out_dir/step_$it.mat", Dict(
                 "Vr" => Array(Vr),
                 "Vp" => Array(Vϕ),
