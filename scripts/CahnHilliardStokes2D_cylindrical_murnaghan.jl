@@ -26,7 +26,7 @@ macro av_ϕi(A) esc(:( 0.5*($A[ir+1,iϕ+1] + $A[ir+1,iϕ]) )) end
 @parallel_indices (ir,iϕ) function init_C!(C,dr,dϕ,r0,lr)
     if checkbounds(Bool,C,ir,iϕ)
         r = r0 + (ir-1)*dr + 0.5dr
-        C[ir,iϕ] = (r < r0 + 0.25lr) ? 0.999 : 0.001
+        C[ir,iϕ] = (r < r0 + 0.25lr) ? 0.9 : 0.1
     end
     return
 end
@@ -59,6 +59,11 @@ end
     vry =  εbg*yv
     vϕx = -εbg*xv 
     vϕy =  εbg*yc
+
+    # vrx = -εbg*yc
+    # vry =  0*yv
+    # vϕx = -εbg*yv 
+    # vϕy =  0*yc
 
     if checkbounds(Bool,Vr,ir,iϕ)
         Vr[ir,iϕ] = (ir>1) *(  vrx*cos(ϕc) + vry*sin(ϕc) )
@@ -96,7 +101,12 @@ end
 @parallel_indices (ir,iϕ) function compute_ρ!(ρ,ρ0,ρ1,K0,Kp,Pr,C)
     if checkbounds(Bool,ρ,ir,iϕ)
         i1 = clamp(ir-1,1,size(Pr,1))
-        j1 = clamp(iϕ-1,1,size(Pr,2))
+        j1 = iϕ - 1
+        if j1 == 0
+            j1 = size(Pr,2) - 2
+        elseif j1 == size(Pr,2)+1
+            j1 = 3
+        end
         ρ[ir,iϕ] = ρ_eos(Pr[i1,j1],ρ0,K0,Kp)*C[i1,j1] + ρ_eos(Pr[i1,j1],ρ1,K0,Kp)*(1.0-C[i1,j1])
     end
     return
@@ -119,15 +129,15 @@ macro ηs_pτ_av()     esc(:( 1.0/(1.0/@Gdτ_mech_av() + 1.0/@av(ηs))      )) e
         rc2     = rc*rc
         if ir == 1
             d2Cdr2 = rvn*(C[ir+1,iϕ] - C[ir,iϕ])/rc
-        elseif ir == size(μ,1)
+        elseif ir == size(C,1)
             d2Cdr2 = - rvs*(C[ir,iϕ] - C[ir-1,iϕ])/rc
         else
             d2Cdr2 = (rvn*(C[ir+1,iϕ] - C[ir,iϕ]) - rvs*(C[ir,iϕ] - C[ir-1,iϕ]))/rc
         end
         if iϕ == 1
-            d2Cdϕ2 = (-C[ir,iϕ] + C[ir,iϕ+1])/rc2
-        elseif iϕ == size(μ,2)
-            d2Cdϕ2 = (C[ir,iϕ-1] - C[ir,iϕ])/rc2
+            d2Cdϕ2 = (C[ir,size(C,2)-2] - 2.0*C[ir,iϕ] + C[ir,iϕ+1])/rc2
+        elseif iϕ == size(C,2)
+            d2Cdϕ2 = (C[ir,iϕ-1] - 2.0*C[ir,iϕ] + C[ir,3])/rc2
         else
             d2Cdϕ2 = (C[ir,iϕ-1] - 2.0*C[ir,iϕ] + C[ir,iϕ+1])/rc2
         end
@@ -174,13 +184,13 @@ end
         rvn         = rc+0.5*dr
         rvs         = rc-0.5*dr
         i1          = clamp(ir-1,1,size(C,1))
-        j1          = clamp(iϕ-1,1,size(C,2))
         i2          = clamp(ir+1,1,size(C,1))
-        j2          = clamp(iϕ+1,1,size(C,2))
-        qρCn        = max(Vr[ir+1,iϕ  ],0.0)*ρ[ir+1,iϕ+1]*C[i1+1,j1+1] + min(Vr[ir+1,iϕ  ],0.0)*ρ[ir+2,iϕ+1]*C[i2  ,j1+1]
-        qρCs        = max(Vr[ir  ,iϕ  ],0.0)*ρ[ir  ,iϕ+1]*C[i1  ,j1+1] + min(Vr[ir  ,iϕ  ],0.0)*ρ[ir+1,iϕ+1]*C[i1+1,j1+1]
-        qρCe        = max(Vϕ[ir  ,iϕ+1],0.0)*ρ[ir+1,iϕ+1]*C[i1+1,j1+1] + min(Vϕ[ir  ,iϕ+1],0.0)*ρ[ir+1,iϕ+2]*C[i1+1,j2  ]
-        qρCw        = max(Vϕ[ir  ,iϕ  ],0.0)*ρ[ir+1,iϕ  ]*C[i1+1,j1  ] + min(Vϕ[ir  ,iϕ  ],0.0)*ρ[ir+1,iϕ+1]*C[i1+1,j1+1]
+        j1          = iϕ == 1 ? size(C,2)-2 : iϕ-1
+        j2          = iϕ == size(C,2) ? 3   : iϕ+1
+        qρCn        = max(Vr[ir+1,iϕ  ],0.0)*ρ[ir+1,iϕ+1]*C[ir  ,iϕ  ] + min(Vr[ir+1,iϕ  ],0.0)*ρ[ir+2,iϕ+1]*C[i2  ,iϕ  ]
+        qρCs        = max(Vr[ir  ,iϕ  ],0.0)*ρ[ir  ,iϕ+1]*C[i1  ,iϕ  ] + min(Vr[ir  ,iϕ  ],0.0)*ρ[ir+1,iϕ+1]*C[ir  ,iϕ  ]
+        qρCe        = max(Vϕ[ir  ,iϕ+1],0.0)*ρ[ir+1,iϕ+1]*C[ir  ,iϕ  ] + min(Vϕ[ir  ,iϕ+1],0.0)*ρ[ir+1,iϕ+2]*C[ir  ,j2  ]
+        qρCw        = max(Vϕ[ir  ,iϕ  ],0.0)*ρ[ir+1,iϕ  ]*C[ir  ,j1  ] + min(Vϕ[ir  ,iϕ  ],0.0)*ρ[ir+1,iϕ+1]*C[ir  ,iϕ  ]
         ∇ρCV[ir,iϕ] = (rvn*qρCn-rvs*qρCs)/dr/rc + (qρCe-qρCw)/dϕ/rc
     end
     # velocity
@@ -215,18 +225,6 @@ end
         @all(ηs) = ηs0*10.0^(npow*@all(C))
         # rel = 1e-3
         # @all(ηs) =  @all(ηs)*(1-rel) + ηs0*10.0^(npow*@all(C))*rel
-    end
-    return
-end
-
-
-@parallel_indices (ir,iϕ) function advect_C!(dC_dt,C,Vr,Vϕ,ρ,r0,dr,dϕ)
-    if ir<=size(dC_dt, 1) && iϕ<=size(dC_dt, 2)
-        rc = r0 + (ir-1)*dr+0.5*dr
-        dC_dt[ir,iϕ] = - max(Vr[ir+1,iϕ+1],0.0)*(C[ir+1,iϕ+1]-C[ir  ,iϕ+1])/dr -
-                         min(Vr[ir+2,iϕ+1],0.0)*(C[ir+2,iϕ+1]-C[ir+1,iϕ+1])/dr -
-                         max(Vϕ[ir+1,iϕ+1],0.0)*(C[ir+1,iϕ+1]-C[ir+1,iϕ  ])/dϕ/rc -
-                         min(Vϕ[ir+1,iϕ+2],0.0)*(C[ir+1,iϕ+2]-C[ir+1,iϕ+1])/dϕ/rc
     end
     return
 end
@@ -329,7 +327,8 @@ end
 
 @views function runme()
     # sim parameters
-    out_dir   = "results/out1"
+    out_dir   = "results/out_spinodal_no_shear_no_coupling"
+    CUDA.device!(3)
     !ispath(out_dir) && mkpath(out_dir)
     # dimensionally independent
     lr,lϕ     = 1.0,2π # m, rad
@@ -342,14 +341,17 @@ end
     ρsc       = psc/vsc^2
     # nondimensional
     χ         = 2.6
-    Pe        = 100.0
-    npow      = 2.0
     Kp        = 4.0
-    bdpsc_vol = 1e-2
-    δv        = 0.05
+    # Pe        = 100.0
+    # Pe        = 30.0
+    Pe        = 0.0
+    npow      = 0*2.0
+    bdpsc_vol = 0*1e-2
+    δv        = 0*0.05
     # dimensionally dependent
     ttot      = 1*tsc
-    dt        = 5e-5*tsc
+    dt        = 5e-6*tsc
+    # dt        = 1e-5*tsc
     r0        = 0.25*lr
     εbg       = Pe/tsc
     K0        = 1e5*psc
@@ -357,20 +359,23 @@ end
     ρ0        = ρ1*(1.0 + δv)
     bd        = -δv*bdpsc_vol/psc
     # numerics
-    nr,nϕ     = 201,611
-    εtol      = 1e-4
-    max_iters = 200*nr
-    ncheck    = ceil(Int, 10nr)
-    nvis      = 1
+    # nr,nϕ     = 251,781
+    nr,nϕ     = 501,1571
+    εtol      = 1e-6
+    max_iters = 300*nr
+    ncheck    = ceil(Int, 1nr)
+    nvis      = 10
+    # CFL_chem  = 0.01
+    # CFL_mech  = 0.1/sqrt(2)
     CFL_chem  = 0.01
-    CFL_mech  = 0.15/sqrt(2)
+    CFL_mech  = 0.4/sqrt(2)
     # preprocessing
     dr,dϕ     = lr/nr,lϕ/(nϕ-2)
     rv,ϕv     = LinRange(r0,r0+lr,nr+1),LinRange(-dϕ,lϕ+dϕ,nϕ+1)
     rc,ϕc     = 0.5*(rv[1:end-1]+rv[2:end]),0.5*(ϕv[1:end-1]+ϕv[2:end])
     vpdτ_chem = dr*CFL_chem
     vpdτ_mech = dr*CFL_mech
-    Re_mech   = 4π
+    Re_mech   = 5π
     r_mech    = 1.0
     γ         = 2dr
     γ2        = γ^2
@@ -405,7 +410,8 @@ end
     rVϕ       = @zeros(nr-2,nϕ-1)
     rPr       = @zeros(nr  ,nϕ  )
     # @parallel init_C!(C,dr,dϕ,r0,lr)
-    Cxy       = 0.8 .* CUDA.rand(101,101) .+ 0.1
+    Cxy       = 0.8 .* CUDA.rand(201,201) .+ 0.1
+    # Cxy       = 0.25 .* CUDA.rand(201,201) .+ 0.1
     dx,dy     = 2.0*(r0+lr)./size(Cxy)
     @parallel sample_rand!(C,Cxy,r0,-dϕ,lr,dr,dϕ,dx,dy)
     @parallel init_V!(Vr,Vϕ,dr,dϕ,r0,-dϕ,εbg)
@@ -428,6 +434,7 @@ end
         "vol"       => δv,
         "r0"        => r0,
         "lr"        => lr,
+        "dt"        => dt,
         "rv"        => Array(rv),
         "pv"        => Array(ϕv),
         "rc"        => Array(rc),
@@ -441,6 +448,7 @@ end
         while any(max_err .> εtol) && iter < max_iters
             @parallel compute_ρ!(ρ,ρ0,ρ1,K0,Kp,Pr,C)
             @parallel update_potentials!(μ,C,Vr,Vϕ,Pr,ρ,ρ_o,τrr,τϕϕ,τrϕ,ηs,ηs,bd,χ,γ2,dt,Re_mech,r_mech,vpdτ_mech,r0,lr,dr,dϕ)
+            # @parallel bc_ϕ3!(μ)
             @parallel update_fluxes!(qCr,qCϕ,∇ρCV,ρ,μ,C,Vr,Vϕ,Pr,τrr,τϕϕ,τrϕ,ηs,dc0,θ_dτ_chem,Re_mech,vpdτ_mech,r0,lr,dr,dϕ)
             @parallel bc_ϕ2!(qCϕ); @parallel bc_ϕ3!(qCr); @parallel bc_ϕ2!(Vϕ); @parallel bc_ϕ3!(Vr)
             @parallel update_concentrations!(C,C_o,qCr,qCϕ,∇ρCV,ρ,ρ_o,ηs,dt,ρ_dτ_chem,ηs0,npow,r0,dr,dϕ)
@@ -450,22 +458,24 @@ end
                 @parallel compute_true_τ!(τrr2,τϕϕ2,τrϕ2,Vr,Vϕ,ηs,r0,dr,dϕ)
                 @parallel compute_residuals!(rC,C,C_o,ρ,ρ_o,∇ρCV,qCr,qCϕ,rVr,rVϕ,rPr,Pr,τrr2,τϕϕ2,τrϕ2,Vr,Vϕ,dt,r0,dr,dϕ)
                 max_err[1] = maximum(rC[:,2:end-1])*tsc/ρsc
-                max_err[2] = maximum(rVr[:,2:end-1])*tsc/vsc/Pe
-                max_err[3] = maximum(rVϕ[:,2:end-1])*tsc/vsc/Pe
+                max_err[2] = maximum(rVr[:,2:end-1])*tsc/vsc
+                max_err[3] = maximum(rVϕ[:,2:end-1])*tsc/vsc
                 max_err[4] = maximum(rPr[2:end-1,2:end-1])*tsc/ρsc
                 @printf(" -- iter/nr = %g, err (C) = %1.3e, err (Vr) = %1.3e, err (Vϕ) = %1.3e, err (∇V) = %1.3e\n", iter/nr, max_err...)
                 all(isfinite.(max_err)) || error("Simulation failed")
             end
             iter += 1
         end
-        if it % nvis == 0
-            @parallel compute_V_cart!(Vx,Vy,Vr,Vϕ,dr,dϕ,r0,-dϕ)
+        if it == 1 || it % nvis == 0
+            # @parallel compute_V_cart!(Vx,Vy,Vr,Vϕ,dr,dϕ,r0,-dϕ)
             # p1 = heatmap(ϕc,rc,Array(Vx);proj=:polar,c=:turbo,title="Vx")
             # p2 = heatmap(ϕc,rc,Array(ρ[2:end-1,2:end-1]);proj=:polar,c=:turbo,title="ρ")
             # p3 = heatmap(ϕc,rc,Array(Pr);proj=:polar,c=:turbo,title="P")
             # p4 = heatmap(ϕc,rc,Array(C);proj=:polar,c=:turbo,title="C")
             # display(plot(p1,p2,p3,p4;layout=(2,2),size=(1e3,600),dpi=100))
-            matwrite("$out_dir/step_$it.mat", Dict(
+            fname = "$out_dir/step_$it.mat"
+            println(" -- writing output to $fname")
+            matwrite(fname, Dict(
                 "Vr" => Array(Vr),
                 "Vp" => Array(Vϕ),
                 "rho" => Array(ρ),
