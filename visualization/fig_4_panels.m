@@ -6,10 +6,9 @@ set(gcf,'Color','white','Units','centimeters','Position',[15 3 8 9.5])
 % simdir = '../results/out_spinodal_pure_shear';
 % simdir = '../results/out_spinodal_simple_shear';
 % simdir = '../results/out_spinodal_simple_shear_v2';
-% simdir = '../results/out_nucleation_simple_shear';
+simdir = '../results/out_nucleation_simple_shear';
 % simdir = '../results/out_nucleation_simple_shear2';
 % simdir = '../results/out_nucleation_pure_shear';
-simdir = '../results/out_nucleation_pure_shear';
 % simdir = '../results/out_inclusion_pure_shear';
 % simdir = '../results/out_inclusion_simple_shear';
 % simdir = '../results/out_nucleation_pure_shear_no_coupling';
@@ -20,7 +19,7 @@ load([simdir '/params.mat'])
 [rc2,pc2] = ndgrid(rc,pc);
 xc        = rc2.*cos(pc2);
 yc        = rc2.*sin(pc2);
-it        = 150;
+it        = 310;
 % tiledlayout(2,2,'TileSpacing','tight','Padding','compact')
 itile = 0;
 
@@ -40,10 +39,10 @@ cb.Position(3) = ax.Position(3);
 cb.Position(4) = cb.Position(4)*0.8;
 xlim([0 r0+lr]); ylim([0 r0+lr])
 set(ax,'ColorScale','log','FontSize',fs)
-text(-0.15,1.0,'\bfA','units','normalized','FontSize',fs+1)
+text(-0.15,1.0,'\bfa','units','normalized','FontSize',fs+1)
 
 ax = axes('Position',[0.57 0.6 0.4 0.4]);
-pcolor(xc,yc,sqrt((Vx+100*xc).^2+(Vy-100*yc).^2));shading flat;axis image;axis off
+pcolor(xc,yc,sqrt((Vx+100*yc).^2+(Vy-0*100*yc).^2));shading flat;axis image;axis off
 cb = colorbar;cb.Label.String='|{\it\bfv}-{\it\bfv}_{bg}|';cb.Label.FontSize=fs;cb.Location='southoutside';
 cb.Position(1) = ax.Position(1);
 cb.Position(2) = ax.Position(2)-cb_oy;
@@ -53,7 +52,7 @@ cb.Ticks = 0:5:25;
 caxis([0 25])
 set(gca,'FontSize',fs)
 xlim([0 r0+lr]); ylim([0 r0+lr])
-text(-0.15,1.0,'\bfB','units','normalized','FontSize',fs+1)
+text(-0.15,1.0,'\bfb','units','normalized','FontSize',fs+1)
 
 ax = axes('Position',[0.07 0.1 0.4 0.4]);
 pcolor(xc,yc,Pr/1000);shading flat;axis image;
@@ -73,7 +72,7 @@ hold off
 axis off;
 set(gca,'FontSize',fs)
 xlim([0 r0+lr]); ylim([0 r0+lr])
-text(-0.15,1.0,'\bfC','units','normalized','FontSize',fs+1)
+text(-0.15,1.0,'\bfc','units','normalized','FontSize',fs+1)
 
 ax = axes('Position',[0.57 0.1 0.4 0.4]);
 pcolor(xc,yc,C);shading flat;axis image
@@ -86,7 +85,7 @@ caxis([0 1])
 axis off;colormap(gca,flip(gray))
 set(gca,'FontSize',fs)
 xlim([0 r0+lr]); ylim([0 r0+lr])
-text(-0.15,1.0,'\bfD','units','normalized','FontSize',fs+1)
+text(-0.15,1.0,'\bfd','units','normalized','FontSize',fs+1)
 
 % cb.Position(3) = cb.Position(3)*0.6;
-exportgraphics(gcf,'fig_4_panels_pure.png','Resolution',300)
+exportgraphics(gcf,'fig_4_panels_simple.tiff','Resolution',300)

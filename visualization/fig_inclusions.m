@@ -54,7 +54,7 @@ for isim = 1:numel(simdirs)
     set(gca,'FontSize',fs)
     xlim([0 r0+lr]); ylim([0 r0+lr])
     %     text(-0.15,1.0,['\bf' char('A'+itile)],'units','normalized','FontSize',fs+1)
-    text(0.9,0.9,['\bf' char('A'+itile)],'units','normalized','FontSize',fs+1)
+    text(0.9,0.9,['\bf' char('a'+itile)],'units','normalized','FontSize',fs+1)
 
     itile = itile + 1;
 

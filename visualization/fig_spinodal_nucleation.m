@@ -7,10 +7,10 @@ mode = 'no';
 
 simdirs = {['../results/out_spinodal_' mode '_shear_no_coupling']  ...
     ,      ['../results/out_nucleation_' mode '_shear_no_coupling'] ...
-    ,      ['../results/out_inclusion_' mode '_shear']};
+    ,      ['../results/out_inclusion_' mode '_shear_no_coupling_comp1D']};
 
 
-its = [1000,1000,100];
+its = [1000,1000,1000];
 
 itile = 0;
 cb_oy = 0.18;
@@ -34,7 +34,7 @@ for isim = 1:numel(simdirs)
     axis off;colormap(gca,flip(gray))
     set(gca,'FontSize',fs)
 %     xlim([0 r0+lr]); ylim([0 r0+lr])
-    text(0.0,1.0,['\bf' char('A'+itile)],'units','normalized','FontSize',fs+1)
+    text(0.0,1.0,['\bf' char('a'+itile)],'units','normalized','FontSize',fs+1)
     
     itile = itile + 1;
 end
@@ -56,7 +56,7 @@ for isim = 1:numel(simdirs)
     axis off;colormap(gca,flip(gray))
     set(gca,'FontSize',fs)
 %     xlim([0 r0+lr]); ylim([0 r0+lr])
-    text(0.0,1.0,['\bf' char('A'+itile)],'units','normalized','FontSize',fs+1)
+    text(0.0,1.0,['\bf' char('a'+itile)],'units','normalized','FontSize',fs+1)
     
     itile = itile + 1;
 end
@@ -64,4 +64,4 @@ end
 cb = colorbar;cb.Label.String='\itc';cb.Label.FontSize=fs;cb.Layout.Tile='east';
 
 % cb.Position(3) = cb.Position(3)*0.6;
-exportgraphics(gcf,['fig_comp_' mode '.png'],'Resolution',300)
+exportgraphics(gcf,['fig_comp_' mode '.tiff'],'Resolution',300)

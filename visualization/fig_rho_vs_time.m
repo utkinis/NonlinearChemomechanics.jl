@@ -38,7 +38,7 @@ for it = timesteps
     end
     xlim([0 r0+lr]); ylim([0 r0+lr])
     set(gca,'FontSize',8)
-    text(-0.15,1.0,['\bf' char('A'+itile)],'FontSize',9,'Units','normalized')
+    text(-0.15,1.0,['\bf' char('a'+itile)],'FontSize',9,'Units','normalized')
 %     drawnow
     itile = itile + 1;
 end
@@ -48,4 +48,4 @@ cb.Label.String='\rho/\rho_0';
 cb.Label.FontSize = 9;
 % cb.Position(3) = cb.Position(3)*0.6;
 cb.Ticks = [1.04:0.02:1.14];
-exportgraphics(gcf,'fig_rho_vs_time.png','Resolution',300)
+exportgraphics(gcf,'fig_rho_vs_time.tiff','Resolution',300)

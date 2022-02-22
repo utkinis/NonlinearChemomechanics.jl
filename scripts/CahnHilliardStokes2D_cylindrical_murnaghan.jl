@@ -1,5 +1,5 @@
 using ParallelStencil
-using Printf,LinearAlgebra,Statistics,MAT,Random
+using Printf,Plots,LinearAlgebra,Statistics,MAT,Random
 
 @init_parallel_stencil(CUDA, Float64, 2)
 # @init_parallel_stencil(Threads, Float64, 2)
@@ -26,7 +26,7 @@ macro av_ϕi(A) esc(:( 0.5*($A[ir+1,iϕ+1] + $A[ir+1,iϕ]) )) end
 @parallel_indices (ir,iϕ) function init_C!(C,dr,dϕ,r0,lr)
     if checkbounds(Bool,C,ir,iϕ)
         r = r0 + (ir-1)*dr + 0.5dr
-        C[ir,iϕ] = (r < r0 + 0.25lr) ? 0.9 : 0.1
+        C[ir,iϕ] = (r < r0 + 0.25lr) ? 0.99 : 0.25
     end
     return
 end
@@ -156,8 +156,9 @@ macro ηs_pτ_av()     esc(:( 1.0/(1.0/@Gdτ_mech_av() + 1.0/@av(ηs))      )) e
         Err       = @d_ra(Vr)/dr
         Eϕϕ       = @d_ϕa(Vϕ)/dϕ/rc + @av_ra(Vr)/rc
         ∇V        = Err + Eϕϕ
-        ∇ρV       = (qρn - qρs)/dr + (qρe - ρvw)/dϕ/rc + 0.5*(qρn + qρs)/rc
-        @all(Pr)  = @all(Pr) - r_mech*@Gdτ_mech()*(∇ρV + (ρ[ir+1,iϕ+1]-ρ_o[ir+1,iϕ+1])/dt)/ρ[ir+1,iϕ+1]
+        # ∇ρV       = (qρn - qρs)/dr + (qρe - ρvw)/dϕ/rc + 0.5*(qρn + qρs)/rc
+        ∇ρV       = (rvn*qρn - rvs*qρs)/dr/rc + (qρe - ρvw)/dϕ/rc
+        @all(Pr)  = @all(Pr) - r_mech*@Gdτ_mech()*( (ρ[ir+1,iϕ+1]-ρ_o[ir+1,iϕ+1])/dt + ∇ρV )/ρ[ir+1,iϕ+1]
         @all(τrr) = 2.0*@ηs_pτ()*( Err - ∇V/3.0 + 0.5*@all(τrr)/@Gdτ_mech())
         @all(τϕϕ) = 2.0*@ηs_pτ()*( Eϕϕ - ∇V/3.0 + 0.5*@all(τϕϕ)/@Gdτ_mech())
     end
@@ -282,7 +283,7 @@ end
         qρs       = max(Vr[ir  ,iϕ  ],0.0)*ρ[ir  ,iϕ+1] + min(Vr[ir  ,iϕ  ],0.0)*ρ[ir+1,iϕ+1]
         qρe       = max(Vϕ[ir  ,iϕ+1],0.0)*ρ[ir+1,iϕ+1] + min(Vϕ[ir  ,iϕ+1],0.0)*ρ[ir+1,iϕ+2]
         ρvw       = max(Vϕ[ir  ,iϕ  ],0.0)*ρ[ir+1,iϕ  ] + min(Vϕ[ir  ,iϕ  ],0.0)*ρ[ir+1,iϕ+1]
-        ∇ρV       = (qρn - qρs)/dr + (qρe - ρvw)/dϕ/rc + 0.5*(qρn + qρs)/rc
+        ∇ρV       = (rvn*qρn - rvs*qρs)/dr/rc + (qρe - ρvw)/dϕ/rc
         @all(rPr) = abs( (ρ[ir+1,iϕ+1]-ρ_o[ir+1,iϕ+1])/dt + ∇ρV )
     end
     return
@@ -327,8 +328,8 @@ end
 
 @views function runme()
     # sim parameters
-    out_dir   = "results/out_spinodal_no_shear_no_coupling"
-    CUDA.device!(3)
+    out_dir   = "results/out_inclusion_no_shear_coupling_comp1D"
+    CUDA.device!(0)
     !ispath(out_dir) && mkpath(out_dir)
     # dimensionally independent
     lr,lϕ     = 1.0,2π # m, rad
@@ -346,11 +347,14 @@ end
     # Pe        = 30.0
     Pe        = 0.0
     npow      = 0*2.0
-    bdpsc_vol = 0*1e-2
-    δv        = 0*0.05
+    # bdpsc_vol = 0*1e-2
+    # δv        = 0*0.05
+    δv        = 5e-3
+    bdpsc_vol = 1e1
     # dimensionally dependent
     ttot      = 1*tsc
-    dt        = 5e-6*tsc
+    dt        = 1e-3*tsc
+    # dt        = 5e-6*tsc
     # dt        = 1e-5*tsc
     r0        = 0.25*lr
     εbg       = Pe/tsc
@@ -359,16 +363,16 @@ end
     ρ0        = ρ1*(1.0 + δv)
     bd        = -δv*bdpsc_vol/psc
     # numerics
-    # nr,nϕ     = 251,781
-    nr,nϕ     = 501,1571
+    nr,nϕ     = 251,781
+    # nr,nϕ     = 501,1571
     εtol      = 1e-6
     max_iters = 300*nr
     ncheck    = ceil(Int, 1nr)
-    nvis      = 10
+    nvis      = 100
     # CFL_chem  = 0.01
     # CFL_mech  = 0.1/sqrt(2)
-    CFL_chem  = 0.01
-    CFL_mech  = 0.4/sqrt(2)
+    CFL_chem  = 0.1
+    CFL_mech  = 0.6/sqrt(2)
     # preprocessing
     dr,dϕ     = lr/nr,lϕ/(nϕ-2)
     rv,ϕv     = LinRange(r0,r0+lr,nr+1),LinRange(-dϕ,lϕ+dϕ,nϕ+1)
@@ -409,12 +413,12 @@ end
     rVr       = @zeros(nr-1,nϕ-2)
     rVϕ       = @zeros(nr-2,nϕ-1)
     rPr       = @zeros(nr  ,nϕ  )
-    # @parallel init_C!(C,dr,dϕ,r0,lr)
-    Cxy       = 0.8 .* CUDA.rand(201,201) .+ 0.1
+    @parallel init_C!(C,dr,dϕ,r0,lr)
+    # Cxy       = 0.8 .* CUDA.rand(201,201) .+ 0.1
     # Cxy       = 0.25 .* CUDA.rand(201,201) .+ 0.1
-    dx,dy     = 2.0*(r0+lr)./size(Cxy)
-    @parallel sample_rand!(C,Cxy,r0,-dϕ,lr,dr,dϕ,dx,dy)
-    @parallel init_V!(Vr,Vϕ,dr,dϕ,r0,-dϕ,εbg)
+    # dx,dy     = 2.0*(r0+lr)./size(Cxy)
+    # @parallel sample_rand!(C,Cxy,r0,-dϕ,lr,dr,dϕ,dx,dy)
+    # @parallel init_V!(Vr,Vϕ,dr,dϕ,r0,-dϕ,εbg)
     ηs       .= ηs0.*10.0 .^ (npow.*C)
     ρ        .= ρ0
     # action
@@ -450,6 +454,8 @@ end
             @parallel update_potentials!(μ,C,Vr,Vϕ,Pr,ρ,ρ_o,τrr,τϕϕ,τrϕ,ηs,ηs,bd,χ,γ2,dt,Re_mech,r_mech,vpdτ_mech,r0,lr,dr,dϕ)
             # @parallel bc_ϕ3!(μ)
             @parallel update_fluxes!(qCr,qCϕ,∇ρCV,ρ,μ,C,Vr,Vϕ,Pr,τrr,τϕϕ,τrϕ,ηs,dc0,θ_dτ_chem,Re_mech,vpdτ_mech,r0,lr,dr,dϕ)
+            Vϕ[1,:] .= Vϕ[2,:]; Vϕ[end,:] .= Vϕ[end-1,:];
+            Vr[:,1] .= Vr[:,2].*rv[2]./rv[1]; Vr[:,end] .= Vr[:,end-1].*rv[end-1]./rv[end];
             @parallel bc_ϕ2!(qCϕ); @parallel bc_ϕ3!(qCr); @parallel bc_ϕ2!(Vϕ); @parallel bc_ϕ3!(Vr)
             @parallel update_concentrations!(C,C_o,qCr,qCϕ,∇ρCV,ρ,ρ_o,ηs,dt,ρ_dτ_chem,ηs0,npow,r0,dr,dϕ)
             @parallel bc_ϕ3!(C); @parallel bc_ϕ3!(ηs)
@@ -462,31 +468,37 @@ end
                 max_err[3] = maximum(rVϕ[:,2:end-1])*tsc/vsc
                 max_err[4] = maximum(rPr[2:end-1,2:end-1])*tsc/ρsc
                 @printf(" -- iter/nr = %g, err (C) = %1.3e, err (Vr) = %1.3e, err (Vϕ) = %1.3e, err (∇V) = %1.3e\n", iter/nr, max_err...)
+                @parallel compute_V_cart!(Vx,Vy,Vr,Vϕ,dr,dϕ,r0,-dϕ)
+                p1 = heatmap(ϕc,rc,Array(Vx);proj=:polar,c=:turbo,title="Vx")
+                p2 = heatmap(ϕc,rc,Array(ρ[2:end-1,2:end-1]);proj=:polar,c=:turbo,title="ρ")
+                p3 = heatmap(ϕc,rc,Array(Pr);proj=:polar,c=:turbo,title="P")
+                p4 = heatmap(ϕc,rc,Array(C);proj=:polar,c=:turbo,title="C")
+                display(plot(p1,p2,p3,p4;layout=(2,2),size=(1e3,600),dpi=100))
                 all(isfinite.(max_err)) || error("Simulation failed")
             end
             iter += 1
         end
         if it == 1 || it % nvis == 0
-            # @parallel compute_V_cart!(Vx,Vy,Vr,Vϕ,dr,dϕ,r0,-dϕ)
-            # p1 = heatmap(ϕc,rc,Array(Vx);proj=:polar,c=:turbo,title="Vx")
-            # p2 = heatmap(ϕc,rc,Array(ρ[2:end-1,2:end-1]);proj=:polar,c=:turbo,title="ρ")
-            # p3 = heatmap(ϕc,rc,Array(Pr);proj=:polar,c=:turbo,title="P")
-            # p4 = heatmap(ϕc,rc,Array(C);proj=:polar,c=:turbo,title="C")
-            # display(plot(p1,p2,p3,p4;layout=(2,2),size=(1e3,600),dpi=100))
-            fname = "$out_dir/step_$it.mat"
-            println(" -- writing output to $fname")
-            matwrite(fname, Dict(
-                "Vr" => Array(Vr),
-                "Vp" => Array(Vϕ),
-                "rho" => Array(ρ),
-                "Pr" => Array(Pr),
-                "Trr" => Array(τrr),
-                "Tpp" => Array(τϕϕ),
-                "Trp" => Array(τrϕ),
-                "C" => Array(C),
-                "mu" => Array(μ),
-                "etas" => Array(ηs),
-            ); compress = true)
+            @parallel compute_V_cart!(Vx,Vy,Vr,Vϕ,dr,dϕ,r0,-dϕ)
+            p1 = heatmap(ϕc,rc,Array(Vx);proj=:polar,c=:turbo,title="Vx")
+            p2 = heatmap(ϕc,rc,Array(ρ[2:end-1,2:end-1]);proj=:polar,c=:turbo,title="ρ")
+            p3 = heatmap(ϕc,rc,Array(Pr);proj=:polar,c=:turbo,title="P")
+            p4 = heatmap(ϕc,rc,Array(C);proj=:polar,c=:turbo,title="C")
+            display(plot(p1,p2,p3,p4;layout=(2,2),size=(1e3,600),dpi=100))
+            # fname = "$out_dir/step_$it.mat"
+            # println(" -- writing output to $fname")
+            # matwrite(fname, Dict(
+            #     "Vr" => Array(Vr),
+            #     "Vp" => Array(Vϕ),
+            #     "rho" => Array(ρ),
+            #     "Pr" => Array(Pr),
+            #     "Trr" => Array(τrr),
+            #     "Tpp" => Array(τϕϕ),
+            #     "Trp" => Array(τrϕ),
+            #     "C" => Array(C),
+            #     "mu" => Array(μ),
+            #     "etas" => Array(ηs),
+            # ); compress = true)
         end
         tcur += dt; it += 1
     end

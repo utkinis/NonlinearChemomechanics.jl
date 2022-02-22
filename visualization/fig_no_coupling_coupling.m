@@ -3,7 +3,7 @@ fs = 8;
 
 set(gcf,'Color','white','Units','centimeters','Position',[15 3 8 10])
 
-mode = 'simple';
+mode = 'pure';
 
 simdirs = {['../results/out_spinodal_' mode '_shear_no_coupling']  ...
     ,      ['../results/out_spinodal_' mode '_shear']              ...
@@ -39,7 +39,7 @@ for isim = 1:numel(simdirs)
     axis off;colormap(gca,flip(gray))
     set(gca,'FontSize',fs)
     xlim([0 r0+lr]); ylim([0 r0+lr])
-    text(-0.15,1.0,['\bf' char('A'+itile)],'units','normalized','FontSize',fs+1)
+    text(-0.15,1.0,['\bf' char('a'+itile)],'units','normalized','FontSize',fs+1)
     itile = itile + 1;
 end
 
